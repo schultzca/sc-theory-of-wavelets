@@ -1,12 +1,20 @@
+# pyplot
 import matplotlib.pyplot as plt
+
+# numpy imports
 import numpy as np
 import numpy.matlib as M
+
+# image load, store, display
 from matplotlib.image import imread
 from matplotlib.cm import Greys_r
 from scipy.misc import imresize
-from copy import deepcopy
-import random
 
+# lloyds
+import scipy.cluster.vq as vq
+
+# utilities
+from copy import deepcopy
 
 def rgb2gray(rgb):
     '''
@@ -78,7 +86,7 @@ def haar_inverse(image, dim=2):
     haar_inverse(image, dim * 2)
 
 
-def compute_threshold(mat, cutoff=0.8):
+def _thresh(mat, cutoff=0.8):
     '''
     Compute threshold and scale used for logarithmic quantization.
 
@@ -96,7 +104,7 @@ def compute_threshold(mat, cutoff=0.8):
     return thresh, lmaxt
 
 
-def log_quant(mat, thresh, lmaxt):
+def encode(mat, thresh, lmaxt):
     '''
     Apply logarithmic quantization to matrix.
 
@@ -119,7 +127,7 @@ def log_quant(mat, thresh, lmaxt):
     return mat_quant
 
 
-def log_quant_inv(mat, thresh, lmaxt):
+def decode(mat, thresh, lmaxt):
     '''
     Reverse logarithmic quantization.
 
@@ -141,43 +149,6 @@ def log_quant_inv(mat, thresh, lmaxt):
     return mat_app
 
 
-def cluster_points(X, mu):
-    clusters = {}
-    for x in X:
-        bestmukey = min([(i[0], np.linalg.norm(x - mu[i[0]])) \
-                         for i in enumerate(mu)], key=lambda t: t[1])[0]
-        try:
-            clusters[bestmukey].append(x)
-        except KeyError:
-            clusters[bestmukey] = [x]
-    return clusters
-
-
-def reevaluate_centers(mu, clusters):
-    newmu = []
-    keys = sorted(clusters.keys())
-    for k in keys:
-        newmu.append(np.mean(clusters[k], axis=0))
-    return newmu
-
-
-def has_converged(mu, oldmu):
-    return set([a for a in mu]) == set([a for a in oldmu])
-
-
-def find_centers(X, K):
-    # Initialize to K random centers
-    oldmu = random.sample(X, K)
-    mu = random.sample(X, K)
-    while not has_converged(mu, oldmu):
-        oldmu = mu
-        # Assign all points in X to clusters
-        clusters = cluster_points(X, mu)
-        # Reevaluate centers
-        mu = reevaluate_centers(oldmu, clusters)
-    return (mu, clusters)
-
-
 def homework_2():
     # load image
     img = imread('gecko.jpg')
@@ -193,17 +164,27 @@ def homework_2():
     plt.show()
 
     # Compute Threshold
-    thresh, lmaxt = compute_threshold(img, 0.95)
+    thresh, lmaxt = _thresh(img, 0.95)
 
     # Apply Logarithmic Quantization
-    img = log_quant(img, thresh, lmaxt)
+    img = encode(img, thresh, lmaxt)
 
     # Reverse Logarithmic Quantization
-    img = log_quant_inv(img, thresh, lmaxt)
+    img = decode(img, thresh, lmaxt)
 
     haar_inverse(img)
     plt.imshow(img)
     plt.show()
+
+def thresh(mat, cutoff=0.8):
+
+    # flatten and sort matrix
+    x = np.sort(mat.flatten())
+
+    # find idx corresponding to 80% threshold
+    idx = int(np.ceil(len(x)*cutoff))
+    
+    return np.array([v if v >= x[idx] else 0 for v in mat.flatten()]).reshape(mat.shape)
 
 
 def homework_3_problem_1():
@@ -251,38 +232,50 @@ def homework_3_problem_3():
     img = imread('gecko.jpg')
     img = rgb2gray(img)
     img = imresize(img, [dim, dim], 'bicubic')
-    img = M.asmatrix(img, dtype='float64')
+    img = img.astype(float)
     org = deepcopy(img)
-    plt.imshow(img, Greys_r)
-    plt.show()
+    plt.subplot(221)
+    plt.title('original')
+    plt.imshow(org, Greys_r)
 
     # Apply haar transformation
     haar_forward(img)
+    plt.subplot(222)
+    plt.title('forward')
+    plt.imshow(img, Greys_r)
+    
+    # store sign and apply thresholding
+    img = img.flatten()    
+    sign = [np.sign(v) for v in img]
+    img = thresh(abs(img), cutoff=0.8)
+  
+    # logarithmic codebook guess
+    x = img[np.where(img > 0)]
+    init = [min(x) * 2**i for i in range(int(np.ceil(np.log2(max(x)/min(x)))))]
+    
+    # Apply k-means to find optimal codebook
+    codebook, distortion = vq.kmeans(np.sort(img[np.where(img > 0)]), init)
+    
+    # Encode image 
+    img, dist = vq.vq(img, codebook) 
 
-    # Convert matrix to 1 dimensional array
-    X = np.array([(img[x, y]) for x in range(0, dim) for y in range(0, dim)], dtype='float64')
-
-    # Find centroids and clusters
-    [mu, clusters] = find_centers(X, 7)
-
-    # convert clusters to partitions and map to corresponding centroid
-    quant = {(min(clusters[i]), max(clusters[i])): int(mu[i]) for i in range(len(mu))}
-
-    # Apply quantization to image.
-    for i in range(dim):
-        for j in range(dim):
-            for key in quant:
-                v = img[i, j]
-                if (v >= key[0]) and (v <= key[1]):
-                    img[i, j] = quant[key]
+    # Decode image
+    img = np.array([s*codebook[i] for s, i in zip(sign, img)])
+    img = img.reshape([256,256])
+    
+    plt.subplot(223)
+    plt.title('after quant')
+    plt.imshow(img, Greys_r)
 
     # Revert haar transformation
     haar_inverse(img)
-
+    
+    plt.subplot(224)
+    plt.title('reverse')
     plt.imshow(img, Greys_r)
     plt.show()
 
 
 if __name__ == "__main__":
-    homework_3_problem_1()
     homework_3_problem_3()
+
