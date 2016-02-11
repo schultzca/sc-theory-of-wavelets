@@ -251,7 +251,7 @@ def homework_3_problem_3():
   
     # logarithmic codebook guess
     x = img[np.where(img > 0)]
-    init = [min(x) * 2**i for i in range(int(np.ceil(np.log2(max(x)/min(x)))))]
+    init = np.array([min(x) * 2**i for i in range(int(np.ceil(np.log2(max(x)/min(x)))))])
     
     # Apply k-means to find optimal codebook
     codebook, distortion = vq.kmeans(np.sort(img[np.where(img > 0)]), init)
