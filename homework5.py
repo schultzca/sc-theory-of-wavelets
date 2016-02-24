@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal.wavelets import cascade
 from sympy import symbols, conjugate, sqrt, solve, evaluate, exp, I, pi
+from sympy.utilities.lambdify import lambdify
 import utilities.wavelet as wv
 
 # declare variables
@@ -25,7 +26,7 @@ eq4 = -h1 + h2 - h3 + h4    # = 0
 solutions = solve([eq0, eq1, eq2, eq3, eq4], [h1, h2, h3, h4])
 
 # verify solutions satisfy equations
-var_list = [h1, h2, h3, h4] 
+var_list = [h1, h2, h3, h4]
 for solution in solutions:
     par = zip(var_list, solution)
     assert eq1.subs(par).evalf(chop=True) == 0 # satisfy eq0
@@ -38,35 +39,17 @@ h = [v.evalf() for v in solutions[0]]
 
 # Compute Symbol
 P, f = wv.compute_symbol(h)
-
+lam_P = lambdify(f, P, 'numpy')
 plt.figure(1)
 
 # Plot Symbol
-t = np.linspace(0,1,100)
-plt.plot(t, [abs(P.subs(f, v).evalf()) for v in t])
+freq = np.linspace(0,1,200)
+plt.plot(freq, [abs(lam_P(v)) for v in freq])
 plt.xlabel('f')
 plt.ylabel('abs(P)')
 plt.title('Symbol P(f)')
 
 plt.figure(2)
-
-# Compute Scaling Function Symbolically
-time = np.linspace(0,3,100)
-plt.subplot(1,2,1)
-phi, t = wv.compute_scaling_function(h, iters=7)
-plt.plot(time, [phi.subs(t,v).evalf() for v in time])
-plt.xlabel('t')
-plt.ylabel('phi')
-plt.title('phi (%s iterations)' % 7)
-
-plt.subplot(1,2,2)
-psi, t = wv.compute_mother_wavelet(h, phi, t)
-plt.plot(time, [psi.subs(t,v).evalf() for v in time])
-plt.xlabel('t')
-plt.ylabel('psi')
-plt.title('psi (%s iterations)' % 7)
-
-plt.figure(3)
 
 # Compute Scaling Function and Wavelet Numerically
 t, phi, psi = cascade(h)
@@ -74,12 +57,12 @@ plt.subplot(1,2,1)
 plt.plot(t, phi)
 plt.xlabel('t')
 plt.ylabel('phi')
-plt.title('phi (scipy)')
+plt.title('scaling function')
 
 plt.subplot(1,2,2)
 plt.plot(t, psi)
 plt.xlabel('t')
 plt.ylabel('psi')
-plt.title('psi (scipy)')
+plt.title('mother wavelet')
 plt.show()
 
