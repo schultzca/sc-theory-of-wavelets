@@ -3,7 +3,7 @@ import numpy as np
 from scipy.signal.wavelets import cascade
 from sympy import symbols, conjugate, sqrt, solve, evaluate, exp, I, pi
 from sympy.utilities.lambdify import lambdify
-import utilities.wavelet as wv
+from utilities.wavelet import Wavelet
 
 # declare variables
 h1, h2, h3, h4 = symbols("h1 h2 h3 h4")
@@ -38,13 +38,12 @@ for solution in solutions:
 h = [v.evalf() for v in solutions[0]]
 
 # Compute Symbol
-P, f = wv.compute_symbol(h)
-lam_P = lambdify(f, P, 'numpy')
+P = Wavelet.compute_symbol(h)
 plt.figure(1)
 
 # Plot Symbol
 freq = np.linspace(0,1,200)
-plt.plot(freq, [abs(lam_P(v)) for v in freq])
+plt.plot(freq, [abs(P(v)) for v in freq])
 plt.xlabel('f')
 plt.ylabel('abs(P)')
 plt.title('Symbol P(f)')
