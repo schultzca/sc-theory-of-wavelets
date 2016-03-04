@@ -30,16 +30,17 @@ def encode(mat, thresh, lmaxt):
     :param lmaxt: threshold ratio
     :return: quantized matrix
     '''
-    dr, dc = mat.shape
-    mat_quant = np.zeros([dr, dc])
-    for i in range(0, dr):
-        for j in range(0, dc):
-            if np.fabs(mat[i, j]) > thresh:
-                sign = mat[i, j] / np.fabs(mat[i, j])
-                ln = np.log2(np.fabs(mat[i, j]) / thresh)
-                q = np.ceil(127 * ln / lmaxt)
-                mat_quant[i, j] = sign * q
-    return mat_quant
+    tmp = mat.flatten()
+    for i in range(len(tmp)):
+        s = np.sign(tmp[i])
+        v = np.fabs(tmp[i])
+        if v > thresh:
+            ln = np.log2(v/thresh)
+            q = np.ceil(127*ln/lmaxt)
+            tmp[i] = s * q
+        else:
+            tmp[i] = 0
+    return tmp.reshape(mat.shape)
 
 
 def decode(mat, thresh, lmaxt):
@@ -53,15 +54,14 @@ def decode(mat, thresh, lmaxt):
     :param lmaxt: threshold ratio
     :return: converted matrix
     '''
-    dr, dc = mat.shape
-    mat_app = np.zeros([dr, dc])
-    for i in range(0, dr):
-        for j in range(0, dc):
-            if np.fabs(mat[i, j]) > 0:
-                sign = mat[i, j] / np.fabs(mat[i, j])
-                lq = np.fabs(mat[i, j]) * lmaxt / 127
-                mat_app[i, j] = sign * thresh * 2 ** lq
-    return mat_app
+    tmp = mat.flatten()
+    for i in range(len(tmp)):
+        s = np.sign(tmp[i])
+        v = np.fabs(tmp[i])
+        if v > 0:
+            lq = v * lmaxt/127
+            tmp[i] = s*thresh*2**lq
+    return tmp.reshape(mat.shape)
 
 
 def thresh(image, cutoff=0.8):
