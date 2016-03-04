@@ -1,5 +1,5 @@
 import numpy as np
-from sympy import solve, symbols, exp, I, pi, sqrt
+import sympy as sy
 from sympy.utilities.lambdify import lambdify
 
 
@@ -125,19 +125,22 @@ def compute_filter_coefficients(n):
     Returns:
         sol (tuple): tuple of lists of solutions (symbolic)
     """
-    h_str = ' '.join(['h%s' % v for v in range(n)])
-    h = symbols(h_str)
-
-    # Filter Equations
+    n = 6
+    h = sy.symbols(' '.join(['h%s' % i for i in range(n)]))
     eq = list()
-    eq.append(sum(v**2 for v in h) - 1)
-    eq.append(sum(h) - sqrt(2))
+    eq.append(sum(h)-sy.sqrt(2))
+    eq.append(sum([v**2 for v in h]) - 1)
 
-    i = 0
-    while len(eq) < n:
-        eq.append(sum([(-1)**k*k**i*h[k] for k in range(n)]))
-        i += 1
-    return solve(eq, h)
+    if n > 2:
+        for k in range(1, n):
+            eq.append(sum([h[i]*h[i+2*k]
+                           for i in range(n) if i + 2*k <= n - 1]))
+        for k in range(n/2):
+            eq.append(sum([(-1)**m*(m**k)*h[m] for m in range(n)]))
+
+    solutions = sy.solve(eq, h)
+
+    return solutions
 
 
 def compute_symbol(h):
@@ -150,6 +153,7 @@ def compute_symbol(h):
     Returns:
         symbol function (symbolic): P(f)
     """
-    f = symbols('f')
-    P = 1/sqrt(2) * sum([h[i]*exp(-I*2*pi*i*f) for i in range(len(h))])
+    f = sy.symbols('f')
+    P = 1/sy.sqrt(2) * sum([h[i]*sy.exp(-sy.I*2*sy.pi*i*f)
+                            for i in range(len(h))])
     return lambdify(f, P, 'numpy')
