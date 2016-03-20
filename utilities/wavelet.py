@@ -157,3 +157,161 @@ def compute_symbol(h):
     P = 1/sy.sqrt(2) * sum([h[i]*sy.exp(-sy.I*2*sy.pi*i*f)
                             for i in range(len(h))])
     return lambdify(f, P, 'numpy')
+
+
+def battle_lemarie_symbol():
+    """
+    Symbolic B-L symbol
+    """
+    f = sy.symbols('f')
+
+    phi_hat = battle_lemarie_scaling_transform()
+
+    # symbolic expression of symbol
+    symbol = phi_hat.subs(f, 2*f)/phi_hat
+    symbol.simplify()
+
+    return symbol
+
+
+def battle_lemarie_scaling_transform():
+    """
+    Symbolic fourier transform of B-L scaling function
+    """
+    w, f = sy.symbols('w, f')
+
+    # symbolic expression of the scaling function
+    w = 2*sy.pi*f
+    N1 = 5 + 30*sy.cos(w/2)**2 + 30*(sy.sin(w/2)**2)*(sy.cos(w/2)**2)
+    N2 = 2*sy.sin(w/2)**4 * sy.cos(w/2)**2 + 70 * \
+        sy.cos(w/2)**4 + (2/3)*sy.sin(w/2)**6
+    S = (N1 + N2)/(105*sy.sin(w/2)**8)
+    phi_hat = 16/(w**4*sy.sqrt(S))
+    phi_hat.simplify()
+
+    return phi_hat
+
+
+def battle_lemarie_wavelet_transform():
+    """
+    Symbolic fourier transform of B-L wavelet
+    """
+    f = sy.symbols('f')
+
+    symbol = battle_lemarie_symbol()
+    phi_hat = battle_lemarie_scaling_transform()
+
+    psi_hat = -sy.exp(-sy.I*sy.pi*f) * \
+        sy.conjugate(symbol.subs(f, (1+f)/2))*phi_hat.subs(f, f/2)
+
+    return psi_hat
+
+
+def cdf_24_encoding_transform(n=256):
+    """
+    CDF 2.4 Encoding Transform Matrix
+
+    Args:
+        n (int): desired dimension
+
+    Returns:
+        ndarray [nxn]: CDF 2.4 transform matrix
+    """
+    # low pass filter coefficients
+    L = np.array([0.03314563036812,
+                  -0.06629126073624,
+                  -0.17677669529664,
+                  0.41984465132951,
+                  0.99436891104358,
+                  0.41984465132951,
+                  -0.17677669529664,
+                  -0.06629126073624,
+                  0.03314563036812])
+
+    # high pass filter coefficients
+    H = np.array([0,
+                  0,
+                  0,
+                  0.35355339059327,
+                  -0.70710678118655,
+                  0.35355339059327,
+                  0,
+                  0,
+                  0])
+
+    T = np.zeros([n, n])
+
+    offset = 4
+    row_size = n + 2*offset
+    for i in range(n):
+        tmp = np.zeros([row_size])
+        end = i + L.size
+        end = end if end < row_size else row_size
+        if i % 2 == 0:
+            tmp[i:end] = L[:end-i]
+        else:
+            tmp[i:end] = H[:end-i]
+
+        T[i, :] = tmp[offset:row_size-offset]
+        T[i, 1:offset+1] += np.flipud(tmp[:offset])
+        T[i, -5:-1] += np.flipud(tmp[-offset:])
+
+    return T
+
+
+def cdf_24_decoding_transform(n=256):
+    """
+    CDF 2.4 Decoding Transform Matrix
+
+    Args:
+        n (int): desired dimension
+
+    Returns:
+        ndarray [nxn]: CDF 2.4 transform matrix
+    """
+    # low pass filter coefficients
+    H = np.array([-0.03314563036812,
+                  -0.06629126073624,
+                  0.17677669529664,
+                  0.41984465132951,
+                  -0.99436891104358,
+                  0.41984465132951,
+                  0.17677669529664,
+                  -0.06629126073624,
+                  -0.03314563036812])
+
+    # high pass filter coefficients
+    L = np.array([0,
+                  0,
+                  0,
+                  0.35355339059327,
+                  0.70710678118655,
+                  0.35355339059327,
+                  0,
+                  0,
+                  0])
+
+    offset = 4
+    row_size = n + 2*offset
+    T = np.zeros([n, n])
+    for i in range(n):
+        tmp = np.zeros([row_size])
+        end = i + L.size
+        end = end if end < row_size else row_size
+        if i % 2 == 0:
+            tmp[i:end] = L[:end-i]
+        else:
+            tmp[i:end] = H[:end-i]
+        T[i, :] = tmp[offset:row_size-offset]
+
+    l = L[-4:]
+    h = H[-4:]
+
+    for i in range(4):
+        if i % 2 == 0:
+            T[i+1, :(4-i)] += h[-(4-i):]
+            T[(n-2)-i, -(4-i):] += np.flipud(l[-(4-i):])
+        else:
+            T[i+1, :(4-i)] += l[-(4-i):]
+            T[(n-2)-i, -(4-i):] += np.flipud(h[-(4-i):])
+    return T
